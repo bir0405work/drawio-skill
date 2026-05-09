@@ -201,10 +201,88 @@ For complete draw.io formats and properties, please check the following referenc
 - **Mermaid Reference**: `references/mermaid-reference.md`
 - **MXFile XSD**: `references/mxfile.xsd`
 
-## Shape Search
+## Shape Search & Official Component Libraries (GCP, AWS, Azure)
 
-To find specific shape styles or templates, you can use the shape search tool located at `scripts/shape-search/`.
-The `search-index.json` contains a pre-generated index of all available draw.io shapes.
+**CRITICAL: GCP and AWS use completely different icon formats.** Always use the scripts in `scripts/` — never guess shape names.
+
+| Provider | Icon Format | Script Output | Node Helper |
+|----------|-------------|---------------|-------------|
+| GCP | `data:image/svg+xml,BASE64` (embedded SVG) | `{ "title": "data:image/svg+xml,..." }` | `card_node()` |
+| AWS | `shape=mxgraph.aws4.xxx` (native shape name) | `{ "title": "outlineConnect=0;...shape=mxgraph.aws4.xxx;..." }` | `icon_node()` |
+| Azure | `shape=mxgraph.azure.xxx` (native shape name) | same as AWS | `icon_node()` |
+
+### Step 1 — Extract icon data
+
+```bash
+# GCP (outputs base64 SVG data URIs)
+python3 scripts/extract-cloud-icons.py --provider gcp \
+  --keywords "Kubernetes Engine" "Cloud Load Balancing" "Cloud IAM" \
+  --output /tmp/gcp_icons.json
+
+# AWS (outputs full mxgraph style strings)
+python3 scripts/extract-cloud-icons.py --provider aws \
+  --keywords "Application Load Balancer" "EC2" "Elastic Kubernetes Service" \
+  --output /tmp/aws_icons.json
+```
+
+**Key option:** `--all` dumps every icon for a provider (useful for discovery).
+
+**Known title mismatches** (exact titles in search-index.json):
+- GCP Cloud Monitoring → search with "monitoring" (title is "Stackdriver")
+- GCP Cloud KMS → search with "Key Management Service"
+- AWS ALB → exact title "Application Load Balancer" (not "ALB")
+- AWS Security Group → exact title "Security group" (lowercase 'g', aws4 tag)
+- AWS EKS → exact title "Elastic Kubernetes Service"
+
+### Step 2 — Build the diagram
+
+`scripts/build-cloud-diagram.py` contains reusable helper functions for both providers:
+
+**GCP** (`--provider gcp`): uses `gcp_icon_node()` + `gcp_project_container()`
+**AWS** (`--provider aws`): uses `icon_node()` + `aws_vpc_container()`
+
+```bash
+python3 scripts/build-cloud-diagram.py \
+  --provider gcp \
+  --icons /tmp/gcp_icons.json \
+  --output my-diagram.drawio \
+  --project-label "My GCP Project"
+
+python3 scripts/build-cloud-diagram.py \
+  --provider aws \
+  --icons /tmp/aws_icons.json \
+  --output my-diagram.drawio \
+  --project-label "AWS VPC"
+```
+
+For custom topologies, copy the helper functions into a project-specific script and define your own `NODES`/`EDGES` lists.
+
+### Step 3 — Verify
+
+```bash
+# GCP: check SVG icons are embedded
+grep -c "image=data:image/svg" diagram.drawio
+
+# AWS: check shape styles are present
+grep -c "mxgraph.aws4" diagram.drawio
+
+open diagram.drawio   # macOS
+```
+
+### GCP icon node format
+
+Single mxCell per component using the embedded SVG image data:
+- `shape=image;image=data:image/svg+xml,BASE64`
+- Set `labelPosition=bottom;verticalLabelPosition=top;align=center;verticalAlign=bottom;` to place the label neatly below the icon.
+- Recommended icon size is width 40, height 40.
+- Edges connect directly between node IDs.
+
+### AWS icon node format
+
+Single mxCell per component using the full style string from search-index.json:
+- Style contains `shape=mxgraph.aws4.ec2` (or similar) already
+- VPC container: `shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_vpc`
+- Edges connect directly between node IDs
 
 ## Troubleshooting
 

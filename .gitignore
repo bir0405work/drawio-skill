@@ -1,0 +1,25 @@
+# OS X
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment variables & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+certs/
+
+# Temporary files
+*.tmp
+*.log
+
+# IDEs
+.vscode/
+.idea/
